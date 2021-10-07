@@ -295,6 +295,9 @@ fork(void)
 
   np->state = RUNNABLE;
 
+  // copy mask
+  np->mask = p->mask;
+
   release(&np->lock);
 
   return pid;
@@ -692,4 +695,18 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+uint64
+free_proc(void)
+{
+	struct proc *p;
+	uint64 free_proc_num = 0;	
+	for (p = proc; p < &proc[NPROC]; p++) {
+		if (p->state == UNUSED) {
+			continue;
+		}
+		free_proc_num++;
+	}
+	return free_proc_num;
 }
