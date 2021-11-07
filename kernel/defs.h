@@ -175,6 +175,7 @@ void            uvmfree(pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);
 void            uvmclear(pagetable_t, uint64);
 uint64          walkaddr(pagetable_t, uint64);
+pte_t * 				walk(pagetable_t, uint64, int);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
@@ -223,4 +224,14 @@ void            sockclose(struct sock *);
 int             sockread(struct sock *, uint64, int);
 int             sockwrite(struct sock *, uint64, int);
 void            sockrecvudp(struct mbuf*, uint32, uint16, uint16);
+
+
 #endif
+
+pagetable_t 		proc_kpagetable(struct proc*);
+void 						proc_freekpagetable(pagetable_t);
+void 						kvmmap_new(pagetable_t ,uint64, uint64, uint64, int);
+pagetable_t 		proc_kpagetabe();
+int 						copyin_new(pagetable_t, char *, uint64, uint64);
+int 						copyinstr_new(pagetable_t, char *, uint64, uint64);
+void						kvmcopy(pagetable_t, pagetable_t, uint64, uint64);
