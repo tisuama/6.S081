@@ -128,6 +128,7 @@ found:
   p->context.sp = p->kstack + PGSIZE;
 
 	p->ticks = 0;
+	p->in_flight = 0;
 	
   return p;
 }
@@ -698,4 +699,84 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+void load_tf(struct proc* p)
+{
+	p->trapframe->kernel_satp = p->tf.kernel_satp;
+	p->trapframe->kernel_sp = p->tf.kernel_sp;
+	p->trapframe->kernel_trap = p->tf.kernel_trap;
+	p->trapframe->epc = p->tf.epc;
+	p->trapframe->kernel_hartid = p->tf.kernel_hartid;
+	p->trapframe->ra = p->tf.ra;
+	p->trapframe->sp = p->tf.sp;
+	p->trapframe->gp = p->tf.gp;
+	p->trapframe->tp = p->tf.tp;
+	p->trapframe->t0 = p->tf.t0;
+	p->trapframe->t1 = p->tf.t1;
+	p->trapframe->t2 = p->tf.t2;
+	p->trapframe->s0 = p->tf.s0;
+	p->trapframe->s1 = p->tf.s1;
+	p->trapframe->a0 = p->tf.a0;
+	p->trapframe->a1 = p->tf.a1;
+	p->trapframe->a2 = p->tf.a2;
+	p->trapframe->a3 = p->tf.a3;
+	p->trapframe->a4 = p->tf.a4;
+	p->trapframe->a5 = p->tf.a5;
+	p->trapframe->a6 = p->tf.a6;
+	p->trapframe->a7 = p->tf.a7;
+	p->trapframe->s2 = p->tf.s2;
+	p->trapframe->s3 = p->tf.s3;
+	p->trapframe->s4 = p->tf.s4;
+	p->trapframe->s5 = p->tf.s5;
+	p->trapframe->s6 = p->tf.s6;
+	p->trapframe->s7 = p->tf.s7;
+	p->trapframe->s8 = p->tf.s8;
+	p->trapframe->s9 = p->tf.s9;
+	p->trapframe->s10 = p->tf.s10;
+	p->trapframe->s11 = p->tf.s11;
+	p->trapframe->t3 = p->tf.t3;
+	p->trapframe->t4 = p->tf.t4;
+	p->trapframe->t5 = p->tf.t5;
+	p->trapframe->t6 = p->tf.t6;
+}
+
+void store_tf(struct proc* p)
+{
+	p->tf.kernel_satp = p->trapframe->kernel_satp;
+	p->tf.kernel_sp = p->trapframe->kernel_sp;
+	p->tf.kernel_trap = p->trapframe->kernel_trap;
+	p->tf.epc = p->trapframe->epc;
+	p->tf.kernel_hartid = p->trapframe->kernel_hartid;	
+	p->tf.ra = p->trapframe->ra;
+	p->tf.sp = p->trapframe->sp;
+	p->tf.gp = p->trapframe->gp;
+	p->tf.tp = p->trapframe->tp;	
+	p->tf.t0 = p->trapframe->t0;
+	p->tf.t1 = p->trapframe->t1;
+	p->tf.t2 = p->trapframe->t2;
+	p->tf.s0 = p->trapframe->s0;
+	p->tf.s1 = p->trapframe->s1;
+	p->tf.a0 = p->trapframe->a0;
+	p->tf.a1 = p->trapframe->a1;
+	p->tf.a2 = p->trapframe->a2;
+	p->tf.a3 = p->trapframe->a3;
+	p->tf.a4 = p->trapframe->a4;
+	p->tf.a5 = p->trapframe->a5;
+	p->tf.a6 = p->trapframe->a6;
+	p->tf.a7 = p->trapframe->a7;
+	p->tf.s2 = p->trapframe->s2;
+	p->tf.s3 = p->trapframe->s3;
+	p->tf.s4 = p->trapframe->s4;
+	p->tf.s5 = p->trapframe->s5;
+	p->tf.s6 = p->trapframe->s6;
+	p->tf.s7 = p->trapframe->s7;
+	p->tf.s8 = p->trapframe->s8;
+	p->tf.s9 = p->trapframe->s9;
+	p->tf.s10 = p->trapframe->s10;
+	p->tf.s11 = p->trapframe->s11;
+	p->tf.t3 = p->trapframe->t3;
+	p->tf.t4 = p->trapframe->t4;
+	p->tf.t5 = p->trapframe->t5;
+	p->tf.t6 = p->trapframe->t6;
 }

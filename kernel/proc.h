@@ -108,4 +108,6 @@ struct proc {
 	int interval;
 	int ticks;
 	uint64 handle;	
+	struct trapframe tf;
+	int in_flight;
 };

@@ -68,8 +68,12 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
 		if (which_dev == 2 && p->interval != 0) {
 			p->ticks++;
-			if (p->ticks >= p->interval) {
+			if (p->ticks >= p->interval && !p->in_flight) {
 				p->ticks = 0;
+				p->in_flight = 1;
+				// 保存寄存器
+				store_tf(p);
+				// 设置返回地址为p->handle
 				p->trapframe->epc = p->handle;	
 			}
 		}
