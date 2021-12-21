@@ -67,6 +67,23 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+	} else if (r_scause() == 13 || r_scause() == 15) {
+		struct proc* p = myproc();
+		uint64 va = r_stval();
+		va = PGROUNDDOWN(va);
+		char* mem = kalloc();
+		if (mem == 0) {
+			panic("no more mem");
+		}
+		memset(mem, 0, PGSIZE);
+		printf("start malloc mem for va: %p, pa: %p\n", va, mem);
+		if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W | PTE_U | PTE_R | PTE_X) != 0) {
+			printf("mappages failed, start to kfree %p\n", mem);
+			kfree(mem);
+		} else if (p->sz < va) {
+			p->sz = va + PGSIZE;
+		}
+		// do not need to return to next instruction
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
