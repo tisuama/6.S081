@@ -136,6 +136,7 @@ found:
 static void
 freeproc(struct proc *p)
 {
+	// printf("start free pagetable for proc %p, pagetable: %p, sz: %d\n", p, p->pagetable, p->sz);
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
@@ -143,6 +144,7 @@ freeproc(struct proc *p)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
   p->sz = 0;
+	p->sp = 0;
   p->pid = 0;
   p->parent = 0;
   p->name[0] = 0;
@@ -267,13 +269,16 @@ fork(void)
     return -1;
   }
 
+	// printf("parent proc %p fork new child %p, copy sz: %d\n", p, np, p->sz);
+
+	uint64 copy_size = p->sz;
   // Copy user memory from parent to child.
-  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+  if(uvmcopy(p->pagetable, np->pagetable, copy_size) < 0){
     freeproc(np);
     release(&np->lock);
     return -1;
   }
-  np->sz = p->sz;
+  np->sz = copy_size;
 
   np->parent = p;
 
@@ -282,6 +287,8 @@ fork(void)
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
+
+	np->sp = p->sp;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)

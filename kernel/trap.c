@@ -71,17 +71,28 @@ usertrap(void)
 		struct proc* p = myproc();
 		uint64 va = r_stval();
 		va = PGROUNDDOWN(va);
-		char* mem = kalloc();
-		if (mem == 0) {
-			panic("no more mem");
-		}
-		memset(mem, 0, PGSIZE);
-		printf("start malloc mem for va: %p, pa: %p\n", va, mem);
-		if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_W | PTE_U | PTE_R | PTE_X) != 0) {
-			printf("mappages failed, start to kfree %p\n", mem);
-			kfree(mem);
-		} else if (p->sz < va) {
-			p->sz = va + PGSIZE;
+		if ((va >= p->sp - PGSIZE && va < p->sp) || va > p->sz) {
+			// printf("va %d but sp: %d p->sz: %d\n", va, p->sp, p->sz);
+			p->killed = 1;
+		} else {
+			char* mem = kalloc();
+			if (mem == 0) {
+				p->killed = 1;
+			} else {
+				memset(mem, 0, PGSIZE);
+				uint flags = (PTE_W | PTE_U | PTE_R | PTE_X);
+				//	printf("proc %p start malloc mem for va: %p, pa: %p cur sz: %d flags: %p pgtable: %p\n", 
+				//			p, va, mem, p->sz, flags, p->pagetable);
+				if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags) != 0) {
+					printf("mappages failed, start to kfree %p\n", mem);
+					kfree(mem);
+					p->killed = 1;
+				} else if (p->sz < va) {
+				  // p->sz = va + PGSIZE;
+					p->killed = 1;
+					printf("proc %p handle page fault failed p->sz: %d va: %d\n", p, p->sz, va);
+				}
+			}
 		}
 		// do not need to return to next instruction
   } else {
