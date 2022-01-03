@@ -66,16 +66,16 @@ usertrap(void)
 
     syscall();
   } else if((which_dev = devintr()) != 0){ // interrupt
-		printf("which dev: %d\n", which_dev);
+		// printf("which dev: %d\n", which_dev);
     // ok
 	} else if (r_scause() == 15) { // scause = 13 读中断 | scause = 15 写入中断
 		struct proc* p = myproc();
 		uint64 va = r_stval();
-		if (va >= p->sz) 
+		if (va >= MAXVA || va >= p->sz) 
 			p->killed = 1;
 		if (handle_cow(p->pagetable, va)) 
 			p->killed = 1;
-		printf("p->killed is set, pid=%d\n",  p->pid);
+		// printf("p->killed is set, pid=%d\n",  p->pid);
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

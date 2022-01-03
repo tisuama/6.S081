@@ -38,7 +38,7 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
-	printf("pa_start: %p, pa_end: %p, ref size: %d\n", pa_start, pa_end, NELEM(ref));
+	// printf("pa_start: %p, pa_end: %p, ref size: %d\n", pa_start, pa_end, NELEM(ref));
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
     kfree(p);
 }
@@ -55,11 +55,6 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
-  // Fill with junk to catch dangling refs.
-  memset(pa, 1, PGSIZE);
-
-  r = (struct run*)pa;
-
   acquire(&kmem.lock);
   int index = REFINDEX((uint64)pa);
 	if (index >= NELEM(ref)) 
@@ -68,6 +63,9 @@ kfree(void *pa)
 		ref[index]--;
 	// if ref count is zero, add to freelist
 	if (!ref[index]) {
+  	// Fill with junk to catch dangling refs.
+  	memset(pa, 1, PGSIZE);
+  	r = (struct run*)pa;
   	r->next = kmem.freelist;
   	kmem.freelist = r;
 	}
@@ -87,9 +85,9 @@ kalloc(void)
   if(r) {
     kmem.freelist = r->next;
 		int index = REFINDEX((uint64)r);
-		if (index >= NELEM(ref))
+		if (index < 0 || index >= NELEM(ref))
 			panic("kalloc");
-		ref[index]++;
+		ref[index] = 1;
 	}
   release(&kmem.lock);
 
@@ -108,6 +106,6 @@ kref(void* pa) {
 	if (index >= NELEM(ref))
 		panic("kref");
 	ref[index]++;	
-	printf("add ref index: %d pa: %p to %d\n", index, pa, ref[index]);
+	// printf("add ref index: %d pa: %p to %d\n", index, pa, ref[index]);
   release(&kmem.lock);
 }

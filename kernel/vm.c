@@ -156,8 +156,8 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V)
-      panic("remap");
+    // if(*pte & PTE_V)
+    //   panic("remap");
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
@@ -321,17 +321,17 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     pa = PTE2PA(*pte);
     flags = (PTE_FLAGS(*pte) & (~PTE_W)) | PTE_C;
 		// 1. reset pte flags for parent process
-		*pte = pa | flags;				
+		*pte = PA2PTE(pa) | flags;				
     // 	if((mem = kalloc()) == 0)
     // 	  goto err;
     //  memmove(mem, (char*)pa, PGSIZE);
 		// 2. set flags for child process and map to pa again
-		printf("copy for pa: %p, va: %p\n", pa, i);
-		kref((void*)pa);
+		// printf("copy for pa: %p, va: %p\n", pa, i);
     if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       kfree((void*)pa);
       goto err;
     }
+		kref((void*)pa);
   }
   return 0;
 
@@ -361,19 +361,19 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
 
-	printf("copy for dstva: %p, len: %d\n", dstva, len);
+	// printf("copy for dstva: %p, len: %d\n", dstva, len);
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
 		pte_t* pte = walk(pagetable, va0, 0);
 		if ((*pte) & PTE_V && (*pte) & PTE_C) {
 			int ret = handle_cow(pagetable, va0);
-			printf("handle cow for va: %p, ret: %d\n", va0, ret);
+			// printf("handle cow for va: %p, ret: %d\n", va0, ret);
 			if (ret) 
 				return -1;
 		}
+    pa0 = walkaddr(pagetable, va0);
+    if(pa0 == 0)
+      return -1;
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
@@ -456,11 +456,14 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 
 int
 handle_cow(pagetable_t pagetable, uint64 va) {
-	printf("handle cow for va: %p\n", va);
+	if (va >= MAXVA) 
+		return -1;
+	// printf("handle cow for va: %p\n", va);
 	pte_t* pte = walk(pagetable, va, 0);
-	if (pte == 0 || ((*pte) & PTE_V) == 0 ||
-			((*pte) & PTE_C) == 0)
-	  panic("pte error");	
+	if (pte == 0 || PTE2PA(*pte) == 0)
+		return -1;
+	if ((PTE_FLAGS(*pte) & PTE_C) == 0)
+		return 0;
 	va = PGROUNDDOWN(va);	
   uint64 pa = walkaddr(pagetable, va);
   uint flags = PTE_FLAGS(*pte);
@@ -468,7 +471,6 @@ handle_cow(pagetable_t pagetable, uint64 va) {
 	char* mem = kalloc();
 	if (mem == 0) 
 		return -1;
-	memset(mem, 0, PGSIZE);
 	memmove((char*)mem, (char*)pa, PGSIZE);
 	flags = (flags | PTE_W) & (~PTE_C);
 	// 2. free and remap va by mappages
