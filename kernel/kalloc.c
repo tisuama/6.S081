@@ -9,10 +9,13 @@
 #include "riscv.h"
 #include "defs.h"
 
-void freerange(void *pa_start, void *pa_end);
+#define REFINDEX(pa) ((pa - (uint64)KERNBASE) / PGSIZE)
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
+int ref[(PHYSTOP - KERNBASE) / PGSIZE];
+
+void freerange(void *pa_start, void *pa_end);
 
 struct run {
   struct run *next;
@@ -35,6 +38,7 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
+	printf("pa_start: %p, pa_end: %p, ref size: %d\n", pa_start, pa_end, NELEM(ref));
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
     kfree(p);
 }
@@ -57,8 +61,16 @@ kfree(void *pa)
   r = (struct run*)pa;
 
   acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
+  int index = REFINDEX((uint64)pa);
+	if (index >= NELEM(ref)) 
+		panic("ref index error");
+	if (ref[index] > 0) 
+		ref[index]--;
+	// if ref count is zero, add to freelist
+	if (!ref[index]) {
+  	r->next = kmem.freelist;
+  	kmem.freelist = r;
+	}
   release(&kmem.lock);
 }
 
@@ -72,11 +84,30 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r) {
     kmem.freelist = r->next;
+		int index = REFINDEX((uint64)r);
+		if (index >= NELEM(ref))
+			panic("kalloc");
+		ref[index]++;
+	}
   release(&kmem.lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+// Just add ref for pa
+void
+kref(void* pa) {
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+    panic("kref");
+  acquire(&kmem.lock);
+  int index = REFINDEX((uint64)pa);
+	if (index >= NELEM(ref))
+		panic("kref");
+	ref[index]++;	
+	printf("add ref index: %d pa: %p to %d\n", index, pa, ref[index]);
+  release(&kmem.lock);
 }
