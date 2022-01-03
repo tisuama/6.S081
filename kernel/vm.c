@@ -364,13 +364,10 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 	// printf("copy for dstva: %p, len: %d\n", dstva, len);
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-		pte_t* pte = walk(pagetable, va0, 0);
-		if ((*pte) & PTE_V && (*pte) & PTE_C) {
-			int ret = handle_cow(pagetable, va0);
-			// printf("handle cow for va: %p, ret: %d\n", va0, ret);
-			if (ret) 
-				return -1;
-		}
+		int ret = handle_cow(pagetable, va0);
+		// printf("handle cow for va: %p, ret: %d\n", va0, ret);
+		if (ret) 
+			return -1;
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
