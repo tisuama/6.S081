@@ -502,20 +502,21 @@ void
 sched(void)
 {
   int intena;
+	struct cpu *c = mycpu();
   struct proc *p = myproc();
 
   if(!holding(&p->lock))
     panic("sched p->lock");
-  if(mycpu()->noff != 1)
+  if(c->noff != 1)
     panic("sched locks");
   if(p->state == RUNNING)
     panic("sched running");
   if(intr_get())
     panic("sched interruptible");
 
-  intena = mycpu()->intena;
-  swtch(&p->context, &mycpu()->context);
-  mycpu()->intena = intena;
+  intena = c->intena;
+  swtch(&p->context, &c->context);
+  c->intena = intena;
 }
 
 // Give up the CPU for one scheduling round.
