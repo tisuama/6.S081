@@ -4,8 +4,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <sys/time.h>
-
-#define NBUCKET 5
+#define NBUCKET 5 
 #define NKEYS 100000
 
 struct entry {
@@ -16,6 +15,7 @@ struct entry {
 struct entry *table[NBUCKET];
 int keys[NKEYS];
 int nthread = 1;
+pthread_mutex_t lock;
 
 double
 now()
@@ -42,6 +42,7 @@ void put(int key, int value)
 
   // is the key already present?
   struct entry *e = 0;
+	pthread_mutex_lock(&lock);
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key)
       break;
@@ -53,6 +54,7 @@ void put(int key, int value)
     // the new is new.
     insert(key, value, &table[i], table[i]);
   }
+	pthread_mutex_unlock(&lock);
 }
 
 static struct entry*
@@ -62,9 +64,11 @@ get(int key)
 
 
   struct entry *e = 0;
+	pthread_mutex_lock(&lock);
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key) break;
   }
+	pthread_mutex_unlock(&lock);
 
   return e;
 }
@@ -107,6 +111,8 @@ main(int argc, char *argv[])
     fprintf(stderr, "Usage: %s nthreads\n", argv[0]);
     exit(-1);
   }
+	pthread_mutex_init(&lock, NULL);
+
   nthread = atoi(argv[1]);
   tha = malloc(sizeof(pthread_t) * nthread);
   srandom(0);
