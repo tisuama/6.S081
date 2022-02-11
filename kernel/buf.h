@@ -5,8 +5,10 @@ struct buf {
   uint blockno;
   struct sleeplock lock;
   uint refcnt;
-  struct buf *prev; // LRU cache list
+  struct buf *prev; 		 // LRU cache list
   struct buf *next;
+	struct buf *next_hash; // LRU cache Table
+	int used;
   uchar data[BSIZE];
 };
 
