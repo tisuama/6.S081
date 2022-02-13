@@ -359,7 +359,7 @@ iput(struct inode *ip)
   }
 
   ip->ref--;
-  printf("inode num: %d ref count: %d ip->valid: %d ip->nlink: %d\n", ip->inum, ip->ref, ip->valid, ip->nlink);
+  // printf("inode num: %d ref count: %d ip->valid: %d ip->nlink: %d\n", ip->inum, ip->ref, ip->valid, ip->nlink);
   release(&icache.lock);
 }
 
