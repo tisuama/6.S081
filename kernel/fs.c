@@ -377,8 +377,9 @@ iunlockput(struct inode *ip)
 static uint
 bmap(struct inode *ip, uint bn)
 {
-  uint addr, *a;
+  uint addr, *a, *b;
   struct buf *bp;
+	struct buf *pp;
 
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0)
@@ -397,9 +398,42 @@ bmap(struct inode *ip, uint bn)
       a[bn] = addr = balloc(ip->dev);
       log_write(bp);
     }
-    brelse(bp);
-    return addr;
-  }
+ 	 	brelse(bp);
+  	return addr;
+  } 
+	
+	bn -= NINDIRECT;
+ 	if (bn < NDINDIRECT) {
+		// Load double indirct block, allocting if necessary
+		// First indirect
+	  if ((addr = ip->addrs[NDIRECT + 1]) ==  0) {
+			ip->addrs[NDIRECT + 1] = addr = balloc(ip->dev);
+		}	
+		bp = bread(ip->dev, addr);
+		a = (uint*)bp->data;
+		int idx = bn / NINDIRECT;							
+		if ((addr = a[idx]) == 0) {
+			a[idx] = addr = balloc(ip->dev);
+			log_write(bp);
+		}
+		// Second indirect
+		int offset = bn % NINDIRECT;
+		pp = bread(ip->dev, addr);
+		b = (uint*)pp->data;
+		if ((addr = b[offset]) == 0) {
+			b[offset] = addr = balloc(ip->dev);
+			log_write(pp);
+		}
+		// printf("idindirect bn: %d idx: %d, offset: %d\n", bn, idx, offset); 
+
+		// brelse
+		brelse(bp);
+		brelse(pp);
+		
+		// return 
+		return addr;
+	}
+
 
   panic("bmap: out of range");
 }
@@ -410,8 +444,8 @@ void
 itrunc(struct inode *ip)
 {
   int i, j;
-  struct buf *bp;
-  uint *a;
+  struct buf *bp, *pp;
+  uint *a, *b;
 
   for(i = 0; i < NDIRECT; i++){
     if(ip->addrs[i]){
@@ -431,6 +465,28 @@ itrunc(struct inode *ip)
     bfree(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
   }
+
+	// NDINDIRECT
+	if (ip->addrs[NDINDIRECT]) {
+		bp = bread(ip->dev, ip->addrs[NDINDIRECT]);
+		a = (uint*)bp->data;
+		for (int i = 0; i < NINDIRECT; i++) {
+			if (a[i]) {
+				for (int j = 0; j < NINDIRECT; j++) {
+					pp = bread(ip->dev, a[i]);
+					b = (uint*)pp->data;
+					if (b[j]) {
+						bfree(ip->dev, b[j]);
+					}
+					brelse(pp);
+				}
+				bfree(ip->dev, a[i]);
+			}
+		}
+		brelse(bp);
+		bfree(ip->dev, ip->addrs[NDINDIRECT]);
+		ip->addrs[NDINDIRECT] = 0;
+	}
 
   ip->size = 0;
   iupdate(ip);
