@@ -12,6 +12,8 @@ struct proc proc[NPROC];
 
 struct proc *initproc;
 
+struct vma vma_list[VMA_NUM];
+
 int nextpid = 1;
 struct spinlock pid_lock;
 
@@ -21,6 +23,17 @@ static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
 
+struct vma*
+alloc_vma() {
+	for (int i = 0; i < VMA_NUM; i++) {
+		acquire(&vma_list[i].lock);
+		if (vma_list[i].length == 0) {
+			return &vma_list[i];
+		}
+		release(&vma_list[i].lock);
+	}
+	panic("no enough vma struct");
+}
 
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
@@ -701,3 +714,5 @@ procdump(void)
     printf("\n");
   }
 }
+
+
