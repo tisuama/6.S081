@@ -488,11 +488,88 @@ sys_pipe(void)
 uint64
 sys_mmap(void)
 {
-	return -1;
+	int length, prot, flags, offset;
+	struct file* f;
+	if (argint(1, &length) < 0 || 
+			argint(2, &prot) < 0 || 
+		 	argint(3, &flags) < 0 ||
+		  argfd(4, 0, &f) < 0 || 
+			argint(5, &offset) < 0) {
+		return -1;
+	}	
+	int perm = PTE_U;
+	if (prot & PROT_WRITE) {
+		if (!f->writable) return -1;
+		perm |= PTE_W;
+	}
+	if (prot & PORT_READ) {
+		if (!f->readable) return -1;
+		perm |= PTE_R;
+	}	
+
+
+	// step 2
+	struct vma* v = alloc_vma();	
+	struct proc* p = myproc();
+	if (!v) return -1;
+	v->file = f;
+	v->flags = flags;
+	v->offset = offset;
+	v->length = length; // offset should be 0
+	v->prot = prot;
+	v->next = NULL;
+	if (!p->vam) {
+		v->start = VAM_START;
+		v->end = VAM_START + v->length;
+	} else {
+		struct vma* vv = p->vma;
+		while (vv->next) {
+			vv = v->next;
+		}
+		v->start = vv->end;
+		v->end = v->start + v->length;
+		vv->next = v;
+	}
+	// lazy alloc
+	p->sz += v->length;	
+  v->perm = perm;
+	// file dup
+	filedup(f);
+	// release lock
+	release(&v->lock);
+	return v->start;
 }
 
 uint64
 sys_munmap(void)
 {
-	return -1;
+	uint64 va;
+	int length;
+	if (argaddr(0, &va) < 0 ||
+		  argint(1, &length) < 0) {
+		return -1;
+	}	
+	// find the vma
+	struct proc* p = myproc();
+	if (!p->vma) return 0;
+	struct vma* v = p->vma;
+	struct vma* next_v;
+	if (va == v->start) {
+		while (length) {
+			// 临界区是否没有包含if
+			acquire(&v->lock);
+			if (v->length >= length) {
+				v->length -= length;
+				length = 0;
+				uvmdealloc(p->pagetable, v->start + length, v->start);
+			} else {
+				length -= v->length;
+				v->length = 0;
+				uvmdealloc(p->pagetable, v->end, v->start);
+			}
+			release(&v->lock);
+		}
+	} else {
+	}
+	return 0;
 }

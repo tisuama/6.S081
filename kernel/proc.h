@@ -1,12 +1,12 @@
 // vma struct
-extern struct file;
 struct vma {
 	uint64 start;
 	uint64 end;
 	uint64 length;
 	uint64 off;
-	int perm;
+	int prot;
 	int flags;
+	int perm;
 	struct file* file;
 	struct vma* next;
 	struct spinlock lock;

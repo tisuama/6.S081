@@ -67,6 +67,10 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+	} else if (r_scause() == 13 || r_scause() == 15) {
+		if (handle_mmap(r_scause(), r_stval())) {
+			p->killed = 1;
+		}
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -218,3 +222,29 @@ devintr()
   }
 }
 
+
+int
+hande_mmap(int scause, uint64 va) {
+	va = PGGROUNDDOWN(va);		
+	struct proc* p = myproc();
+	struct vma* v = p->vma;
+	uint64 start = VMA_START, end = VMA_START;
+	if (v) {
+		start = v->start;
+		while (v->next) {
+			if (va >= v->start && va < v->end) {
+				break;
+			}
+		}
+		end = v->end;
+	}
+	if (!(va >= start && va < end)) return -1;
+	char* mem = kalloc();
+	if (!mem) return -1;
+	memset(mem, 0, sizeof(mem));
+	if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, v->perm)) {
+		kfree(mem);
+		p->killed = 1;
+	}
+	return 0;
+}

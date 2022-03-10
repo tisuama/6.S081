@@ -32,8 +32,9 @@ alloc_vma() {
 		}
 		release(&vma_list[i].lock);
 	}
-	panic("no enough vma struct");
+	return 0;
 }
+
 
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
