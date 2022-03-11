@@ -316,8 +316,13 @@ ilock(struct inode *ip)
 void
 iunlock(struct inode *ip)
 {
-  if(ip == 0 || !holdingsleep(&ip->lock) || ip->ref < 1)
+  if(ip == 0 || !holdingsleep(&ip->lock) || ip->ref < 1) {
+    if (ip)
+      printf("inode: %p, ref: %d\n", ip, ip->ref);
+    else 
+      printf("=== inode is 0 ===\n");
     panic("iunlock");
+  }
 
   releasesleep(&ip->lock);
 }
@@ -354,6 +359,7 @@ iput(struct inode *ip)
   }
 
   ip->ref--;
+  printf("inode num: %d ref count: %d ip->valid: %d ip->nlink: %d\n", ip->inum, ip->ref, ip->valid, ip->nlink);
   release(&icache.lock);
 }
 
@@ -467,25 +473,25 @@ itrunc(struct inode *ip)
   }
 
 	// NDINDIRECT
-	if (ip->addrs[NDINDIRECT]) {
-		bp = bread(ip->dev, ip->addrs[NDINDIRECT]);
+	if (ip->addrs[NDIRECT + 1]) {
+		bp = bread(ip->dev, ip->addrs[NDIRECT + 1]);
 		a = (uint*)bp->data;
 		for (int i = 0; i < NINDIRECT; i++) {
 			if (a[i]) {
+				pp = bread(ip->dev, a[i]);
+				b = (uint*)pp->data;
 				for (int j = 0; j < NINDIRECT; j++) {
-					pp = bread(ip->dev, a[i]);
-					b = (uint*)pp->data;
 					if (b[j]) {
 						bfree(ip->dev, b[j]);
 					}
-					brelse(pp);
 				}
+			  brelse(pp);	
 				bfree(ip->dev, a[i]);
 			}
 		}
 		brelse(bp);
-		bfree(ip->dev, ip->addrs[NDINDIRECT]);
-		ip->addrs[NDINDIRECT] = 0;
+		bfree(ip->dev, ip->addrs[NDIRECT + 1]);
+		ip->addrs[NDIRECT + 1] = 0;
 	}
 
   ip->size = 0;
