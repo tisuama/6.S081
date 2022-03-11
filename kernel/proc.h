@@ -3,7 +3,7 @@ struct vma {
 	uint64 start;
 	uint64 end;
 	uint64 length;
-	uint64 off;
+	uint64 offset;
 	int prot;
 	int flags;
 	int perm;

@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -357,7 +358,20 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
-
+	
+	struct vma* v = p->vma, *v_ptr;	
+	while (v) {
+		acquire(&v->lock);
+		if (v->length) {
+			writeback(v, v->start, v->length);
+			fileclose(v->file);
+			v->length = 0;
+		}
+		v_ptr = v->next;
+		release(&v->lock);
+		v = v_ptr;
+	}
+	
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
     if(p->ofile[fd]){
@@ -716,4 +730,11 @@ procdump(void)
   }
 }
 
+
+void writeback(struct vma* v, uint64 addr, int length)
+{
+	if (!(v->flags & MAP_SHARED)) return ;	
+	if (!(v->perm & PTE_W)) return ;	
+	filewrite(v->file, addr, length);				
+}
 

@@ -224,8 +224,8 @@ devintr()
 
 
 int
-hande_mmap(int scause, uint64 va) {
-	va = PGGROUNDDOWN(va);		
+handle_mmap(int scause, uint64 va) {
+	va = PGROUNDDOWN(va);		
 	struct proc* p = myproc();
 	struct vma* v = p->vma;
 	uint64 start = VMA_START, end = VMA_START;

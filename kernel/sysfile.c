@@ -502,7 +502,7 @@ sys_mmap(void)
 		if (!f->writable) return -1;
 		perm |= PTE_W;
 	}
-	if (prot & PORT_READ) {
+	if (prot & PROT_READ) {
 		if (!f->readable) return -1;
 		perm |= PTE_R;
 	}	
@@ -517,10 +517,10 @@ sys_mmap(void)
 	v->offset = offset;
 	v->length = length; // offset should be 0
 	v->prot = prot;
-	v->next = NULL;
-	if (!p->vam) {
-		v->start = VAM_START;
-		v->end = VAM_START + v->length;
+	v->next = 0;
+	if (!p->vma) {
+		v->start = VMA_START;
+		v->end = VMA_START + v->length;
 	} else {
 		struct vma* vv = p->vma;
 		while (vv->next) {
@@ -553,23 +553,29 @@ sys_munmap(void)
 	struct proc* p = myproc();
 	if (!p->vma) return 0;
 	struct vma* v = p->vma;
-	struct vma* next_v;
+	while (v) {
+		if (v->start >= va && va < v->end) {
+			break;
+		}
+	}
+	if (!v) return -1;
+	if (va != v->start && va + length != v->end) 
+		panic("munmap error");
+	acquire(&v->lock);
 	if (va == v->start) {
-		while (length) {
-			// 临界区是否没有包含if
-			acquire(&v->lock);
-			if (v->length >= length) {
-				v->length -= length;
-				length = 0;
-				uvmdealloc(p->pagetable, v->start + length, v->start);
-			} else {
-				length -= v->length;
-				v->length = 0;
-				uvmdealloc(p->pagetable, v->end, v->start);
-			}
-			release(&v->lock);
+		if (length == v->length) {
+			uvmdealloc(p->pagetable, v->end, v->start);
+			fileclose(v->file);
+			// set v length to 0
+			v->length = 0;
+		} else {
+			v->length -= length;
+			v->start += length;
 		}
 	} else {
+		v->end -= length;
+		v->length -= length;
 	}
+	release(&v->lock);
 	return 0;
 }
