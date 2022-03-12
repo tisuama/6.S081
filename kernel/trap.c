@@ -5,6 +5,10 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fs.h"
+#include "sleeplock.h"
+#include "file.h"
+#include "fcntl.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -68,6 +72,7 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
 	} else if (r_scause() == 13 || r_scause() == 15) {
+		printf("call handle mmap, r: %d, addr: %p\n", r_scause(), r_stval());
 		if (handle_mmap(r_scause(), r_stval())) {
 			p->killed = 1;
 		}
@@ -235,16 +240,33 @@ handle_mmap(int scause, uint64 va) {
 			if (va >= v->start && va < v->end) {
 				break;
 			}
+			v = v->next;
 		}
 		end = v->end;
+	}
+	if (v) {
+		printf("find va: %p, v->start: %p, v->end: %p\n", va, v->start, v->end);
+	} else {
+		printf("proc p: %p vma is: %p\n", p, p->vma);
+		return -1;
 	}
 	if (!(va >= start && va < end)) return -1;
 	char* mem = kalloc();
 	if (!mem) return -1;
-	memset(mem, 0, sizeof(mem));
+	memset(mem, 0, PGSIZE);
+	printf("proc %p alloc mem va: %p, pa: %p\n", p, va, mem);
 	if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, v->perm)) {
+		printf("map pages failed for mem: %p\n" ,mem);
 		kfree(mem);
 		p->killed = 1;
 	}
+	// start read from virtual address va
+	{
+		int r = readi(v->file->ip, 1, va, va - v->start, PGSIZE);
+		printf("read file: %p, va: %p offset: %d, size: %d\n", v->file, va, va - v->start,  r);
+		if (r <= 0) {
+			return -1;
+		}
+	}		
 	return 0;
 }

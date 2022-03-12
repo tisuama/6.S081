@@ -148,6 +148,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+	p->vma = 0;
 
   return p;
 }
@@ -297,6 +298,31 @@ fork(void)
   }
   np->sz = p->sz;
 
+	// copy vma to child
+	struct vma* v = p->vma, *pre = 0;
+	while(v) {
+		struct vma* vv = alloc_vma();
+		vv->start = v->start;
+		vv->end = v->end;
+		vv->file = v->file;
+		vv->length = v->length;
+		vv->offset = v->offset;
+		vv->perm = v->perm;
+		vv->prot = v->prot;
+		vv->flags = v->flags;
+		vv->next = 0;
+		if (pre) {
+			pre->next = vv;
+		} else {
+			np->vma = vv;
+		}
+		filedup(v->file);
+		v = v->next;
+		pre = vv;
+		release(&vv->lock);
+	}
+	
+	
   np->parent = p;
 
   // copy saved user registers.
@@ -359,18 +385,17 @@ exit(int status)
   if(p == initproc)
     panic("init exiting");
 	
-	struct vma* v = p->vma, *v_ptr;	
+	struct vma* v = p->vma;	
 	while (v) {
-		acquire(&v->lock);
 		if (v->length) {
 			writeback(v, v->start, v->length);
+			uvmdealloc(p->pagetable, v->end, v->start);
 			fileclose(v->file);
 			v->length = 0;
 		}
-		v_ptr = v->next;
-		release(&v->lock);
-		v = v_ptr;
+		v = v->next;
 	}
+	p->vma = 0;
 	
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){

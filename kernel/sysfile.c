@@ -69,12 +69,13 @@ sys_dup(void)
 uint64
 sys_read(void)
 {
-  struct file *f;
+  struct file *f = 0;
   int n;
   uint64 p;
 
-  if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argaddr(1, &p) < 0)
+  if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argaddr(1, &p) < 0) {
     return -1;
+	}
   return fileread(f, p, n);
 }
 
@@ -488,6 +489,7 @@ sys_pipe(void)
 uint64
 sys_mmap(void)
 {
+	printf("start mmap syscall\n");
 	int length, prot, flags, offset;
 	struct file* f;
 	if (argint(1, &length) < 0 || 
@@ -499,7 +501,9 @@ sys_mmap(void)
 	}	
 	int perm = PTE_U;
 	if (prot & PROT_WRITE) {
-		if (!f->writable) return -1;
+		if (!f->writable && !(flags & MAP_PRIVATE)) {
+			return -1;
+		}
 		perm |= PTE_W;
 	}
 	if (prot & PROT_READ) {
@@ -507,42 +511,51 @@ sys_mmap(void)
 		perm |= PTE_R;
 	}	
 
-
 	// step 2
 	struct vma* v = alloc_vma();	
 	struct proc* p = myproc();
-	if (!v) return -1;
+	if (!v) {
+		printf("no vma alloc\n");
+		return -1;
+	}
 	v->file = f;
 	v->flags = flags;
 	v->offset = offset;
 	v->length = length; // offset should be 0
 	v->prot = prot;
 	v->next = 0;
+	printf("mmap p: %p, p->vma: %p\n", p, p->vma);
 	if (!p->vma) {
 		v->start = VMA_START;
 		v->end = VMA_START + v->length;
+		p->vma = v;
+		printf("proc: %p's first vma: %p\n", p, p->vma);
 	} else {
 		struct vma* vv = p->vma;
+		int cnt = 1;
 		while (vv->next) {
-			vv = v->next;
+			vv = vv->next;
+			cnt++;
 		}
+		printf("proc: %p's %d's vma: %p\n", p, cnt + 1, v);
 		v->start = vv->end;
 		v->end = v->start + v->length;
 		vv->next = v;
 	}
 	// lazy alloc
-	p->sz += v->length;	
   v->perm = perm;
 	// file dup
 	filedup(f);
 	// release lock
 	release(&v->lock);
+	printf("mmap return for file: %p, addr: %p, size: %d\n", f, v->start, length);
 	return v->start;
 }
 
 uint64
 sys_munmap(void)
 {
+	printf("start munmap syscall\n");
 	uint64 va;
 	int length;
 	if (argaddr(0, &va) < 0 ||
@@ -553,29 +566,42 @@ sys_munmap(void)
 	struct proc* p = myproc();
 	if (!p->vma) return 0;
 	struct vma* v = p->vma;
+	struct vma* pre = 0;
 	while (v) {
 		if (v->start >= va && va < v->end) {
 			break;
 		}
+		pre = v;
+		v = v->next;
 	}
 	if (!v) return -1;
 	if (va != v->start && va + length != v->end) 
 		panic("munmap error");
-	acquire(&v->lock);
+	printf("start unmap for file: %p, va: %p length: %d, v->start: %p\n", v->file, va, length, v->start);
 	if (va == v->start) {
 		if (length == v->length) {
+			printf("file: %p, unmap length is equal to v->length, start to writeback, v_start: %p, v_end: %p\n", v->file, v->start ,v->end); 
+			writeback(v, v->start, v->length);
 			uvmdealloc(p->pagetable, v->end, v->start);
 			fileclose(v->file);
 			// set v length to 0
 			v->length = 0;
+			if (!pre) {
+				p->vma = v->next;
+			} else {
+				pre->next = v->next;
+			}
 		} else {
+			printf("file %p unmap length: %d, v->length: %d\n", v->file, length, v->length);
+			writeback(v, v->start, length);
+			uvmdealloc(p->pagetable, v->start + length, v->start);
 			v->length -= length;
 			v->start += length;
 		}
 	} else {
+		writeback(v, v->end - length, length);
 		v->end -= length;
 		v->length -= length;
 	}
-	release(&v->lock);
 	return 0;
 }
